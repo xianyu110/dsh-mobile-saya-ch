@@ -67,6 +67,16 @@ export interface PluginConfig {
   rateLimitWindowMs?: number
   maxPairingAttempts?: number
   maxRateLimitKeys?: number
+  /** Optional tailnet bridge: joins the tailnet and exposes the gateway inside it. */
+  tailscale?: {
+    enabled?: boolean
+    /** Tailscale auth key; otherwise the TS_AUTHKEY environment variable is used. */
+    authKey?: string
+    /** Tailnet device hostname (default "dsh-mobile"). */
+    hostname?: string
+    /** Port the bridge listens on inside the tailnet (default 8080). */
+    listenPort?: number
+  }
 }
 
 /** Resolved, validated security and resource limits. */
@@ -98,6 +108,12 @@ export interface ResolvedGatewayConfig {
   readonly rateLimitWindowMs: number
   readonly maxPairingAttempts: number
   readonly maxRateLimitKeys: number
+  readonly tailscale?: {
+    readonly enabled: boolean
+    readonly authKey?: string
+    readonly hostname: string
+    readonly listenPort: number
+  }
 }
 
 /** Loader-facing defaults; {@link parseGatewayConfig} enforces cross-field security rules. */
@@ -136,6 +152,12 @@ export const Config: z<PluginConfig> = z.object({
   rateLimitWindowMs: z.natural(),
   maxPairingAttempts: z.natural(),
   maxRateLimitKeys: z.natural(),
+  tailscale: z.object({
+    enabled: z.boolean(),
+    authKey: z.string(),
+    hostname: z.string(),
+    listenPort: z.natural().max(65535),
+  }),
 })
 
 function integer(value: unknown, name: string, fallback: number, minimum: number, maximum: number): number {
@@ -309,5 +331,13 @@ export function parseGatewayConfig(raw: unknown): ResolvedGatewayConfig {
     rateLimitWindowMs: integer(value.rateLimitWindowMs, 'rateLimitWindowMs', 60_000, 1_000, 3_600_000),
     maxPairingAttempts: integer(value.maxPairingAttempts, 'maxPairingAttempts', 8, 1, 100),
     maxRateLimitKeys: integer(value.maxRateLimitKeys, 'maxRateLimitKeys', 256, 1, 4096),
+    ...(value.tailscale === undefined || value.tailscale.enabled !== true ? {} : {
+      tailscale: {
+        enabled: true,
+        ...(value.tailscale.authKey === undefined ? {} : { authKey: value.tailscale.authKey }),
+        hostname: value.tailscale.hostname === undefined ? 'dsh-mobile' : value.tailscale.hostname,
+        listenPort: integer(value.tailscale.listenPort, 'tailscale.listenPort', 8080, 1, 65535),
+      },
+    }),
   })
 }

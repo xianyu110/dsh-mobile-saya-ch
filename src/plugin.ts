@@ -17,6 +17,7 @@ import {
   type MobileAccessRuntime,
 } from './control.js'
 import { MobileAccessGateway } from './gateway.js'
+import { TailscaleBridge } from './tailscale.js'
 import { createMobileAccessService, type MobileAccessService } from './extensions.js'
 import { listComputerImages, readComputerImage } from './computer-images.js'
 import {
@@ -152,9 +153,22 @@ export async function apply(ctx: Context, config: PluginConfig): Promise<void> {
       throw error
     }
     gateway = candidate
+    // Optional tailnet bridge: joins the tailnet and exposes this gateway
+    // origin inside it. Bridge failures only degrade the tailnet path.
+    let tailscale: TailscaleBridge | undefined
+    if (resolved.tailscale !== undefined) {
+      tailscale = new TailscaleBridge({
+        ...(resolved.tailscale.authKey === undefined ? {} : { authKey: resolved.tailscale.authKey }),
+        hostname: resolved.tailscale.hostname,
+        upstream: candidate.address().origin,
+        listenPort: resolved.tailscale.listenPort,
+      })
+      tailscale.start()
+    }
     return {
       close: async () => {
         if (gateway === candidate) gateway = undefined
+        tailscale?.stop()
         await candidate.close()
         await mobileAccess.stopLocal()
       },

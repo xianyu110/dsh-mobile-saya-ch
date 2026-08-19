@@ -27,6 +27,7 @@
     "lib/client.js.map",
     "lib/mobile-layout.js",
     "lib/mobile-layout.js.map",
+    "bin/tsnet-bridge.exe",
     "cordis.patch.yml",
     "README.md",
     "README.en.md",
